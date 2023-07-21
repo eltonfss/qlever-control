@@ -199,32 +199,41 @@ function action_remove_index {
 }
 
 function action_index_stats {
+  # Get key timestamps from index log.
   if [ ! -e ${DB}.index-log.txt ]; then echo "${RED}Need file \"${DB}.index-log.txt\"${NORMAL}"; return; fi
-  $SHOW readarray -t T < <(sed -En '/INFO:  (Processing|Done, total|Converting triples|Creating|Index build|Adding text index|DocsDB done)/p' ${DB}.index-log.txt | cut -c1-19)
-  if [ "${#T[@]}" -lt "4" ]; then echo "${RED}Missing key lines in \"${DB}.index-log.txt\"${NORMAL}"; return; fi
+  $SHOW readarray -t T < <(sed -En '/INFO:  (Processing input triple|Merging partial vocabularies in byte order|Converting triples|Creating a pair of|Index build|Adding text index|Text index build)/p' ${DB}.index-log.txt | cut -c1-19)
+  if [ "${#T[@]}" -lt "1" ]; then echo "${RED}Missing key lines in \"${DB}.index-log.txt\"${NORMAL}"; return; fi
+  if [ -z "${T[7]}" ] || [ -z "${T[8]}" ]; then UNFIN=true; else UNFIN=false; fi
+  NOW=$(date +%Y-%m-%d\ %H:%M:%S)
+  # for i in {0..8}; do echo "T[$i] = \"${T[$i]}\""; done; echo
+  for i in {1..8}; do if [ -z "${T[$i]}" ]; then T[$i]=${NOW}; fi; done
+
+  # Create an array of the same size as T, but with the time differences between the elements of T.
   Ts=$(echo "($(date +%s -d "${T[-1]}") - $(date +%s -d "${T[0]}"))" | bc)
   if [ "${Ts}" -gt "3600" ]; then Tdiv=3600; Tunit="h"; else Tdiv=60; Tunit="min"; fi
-  T1=$(echo "($(date +%s -d "${T[1]}") - $(date +%s -d "${T[0]}")) / ${Tdiv}" | bc -l)
-  T2=$(echo "($(date +%s -d "${T[2]}") - $(date +%s -d "${T[1]}")) / ${Tdiv}" | bc -l)
-  T3=$(echo "($(date +%s -d "${T[3]}") - $(date +%s -d "${T[2]}")) / ${Tdiv}" | bc -l)
-  T4=$(echo "($(date +%s -d "${T[4]}") - $(date +%s -d "${T[3]}")) / ${Tdiv}" | bc -l)
-  T5=$(echo "($(date +%s -d "${T[5]}") - $(date +%s -d "${T[4]}")) / ${Tdiv}" | bc -l)
-  T6=$(echo "($(date +%s -d "${T[6]}") - $(date +%s -d "${T[5]}")) / ${Tdiv}" | bc -l)
-  T7=$(echo "($(date +%s -d "${T[7]}") - $(date +%s -d "${T[6]}")) / ${Tdiv}" | bc -l)
-  T8=$(echo "($(date +%s -d "${T[8]}") - $(date +%s -d "${T[7]}")) / ${Tdiv}" | bc -l)
-  T9=$(echo "($(date +%s -d "${T[9]}") - $(date +%s -d "${T[8]}")) / ${Tdiv}" | bc -l)
-  TT=$(echo "($(date +%s -d "${T[-1]}") - $(date +%s -d "${T[0]}")) / ${Tdiv}" | bc -l)
+  for i in {1..9}; do
+    date1=$(date +%s -d "${T[$i]}")
+    date2=$(date +%s -d "${T[$((i-1))]}")
+    eval "Tdiff[$i]=$(echo "(${date1} - ${date2}) / ${Tdiv}" | bc -l)"
+    # echo "Tdiff[$i] = ${Tdiff[$i]}"
+  done
+  TT=$(echo "${Tdiff[1]} + ${Tdiff[2]} + ${Tdiff[3]} + ${Tdiff[4]} + ${Tdiff[5]} + ${Tdiff[6]} + ${Tdiff[7]} + ${Tdiff[8]}" | bc -l)
+
   echo "Time needed for the various phases of the index build"
   echo
-  printf "%-23s : %5.1f ${Tunit}\n" "Parse input"            ${T1}
-  printf "%-23s : %5.1f ${Tunit}\n" "Build vocabularies"     $(echo "${T2} + ${T4}" | bc)
-  printf "%-23s : %5.1f ${Tunit}\n" "Convert to global IDs"  ${T3}
-  if [ "${#T[@]}" -gt "5" ]; then printf "%-23s : %5.1f ${Tunit}\n" "PSO & POS permutations" ${T5}; fi
-  if [ "${#T[@]}" -gt "6" ]; then printf "%-23s : %5.1f ${Tunit}\n" "SPO & SOP permutations" ${T6}; fi
-  if [ "${#T[@]}" -gt "7" ]; then printf "%-23s : %5.1f ${Tunit}\n" "OSP & OPS permutations" ${T7}; fi
-  if [ "${#T[@]}" -gt "9" ]; then printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${T9}; fi
+  printf "%-23s : %5.1f ${Tunit}\n" "Parse input"            ${Tdiff[1]}
+  printf "%-23s : %5.1f ${Tunit}\n" "Build vocabularies"     ${Tdiff[2]}
+  printf "%-23s : %5.1f ${Tunit}\n" "Convert to global IDs"  ${Tdiff[3]}
+  printf "%-23s : %5.1f ${Tunit}\n" "PSO & POS permutations" ${Tdiff[4]}
+  printf "%-23s : %5.1f ${Tunit}\n" "SPO & SOP permutations" ${Tdiff[5]}
+  printf "%-23s : %5.1f ${Tunit}\n" "OSP & OPS permutations" ${Tdiff[6]}
+  printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${Tdiff[8]}
   echo
   printf "%-23s : %5.1f ${Tunit}\n" "TOTAL index build time" ${TT}
+  if [ ${UNFIN} = true ]; then
+    echo
+    echo "${RED}Index build not (yet) finished${NORMAL}"
+  fi
 }
 
 function action_start {
