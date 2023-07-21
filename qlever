@@ -203,7 +203,9 @@ function action_index_stats {
   if [ ! -e ${DB}.index-log.txt ]; then echo "${RED}Need file \"${DB}.index-log.txt\"${NORMAL}"; return; fi
   $SHOW readarray -t T < <(sed -En '/INFO:  (Processing input triple|Merging partial vocabularies in byte order|Converting triples|Creating a pair of|Index build|Adding text index|Text index build)/p' ${DB}.index-log.txt | cut -c1-19)
   if [ "${#T[@]}" -lt "1" ]; then echo "${RED}Missing key lines in \"${DB}.index-log.txt\"${NORMAL}"; return; fi
-  if [ -z "${T[7]}" ] || [ -z "${T[8]}" ]; then UNFIN=true; else UNFIN=false; fi
+  # If T[7] is not empty, we have a text index (finished or not).
+  if [ ! -z "${T[7]}" ]; then TEXT_INDEX=true; else TEXT_INDEX=false; fi
+  if [ -z "${T[6]}" ] || [ ! -z "${T[7]}" ] && [ -z "${T[8]}" ]; then UNFIN=true; else UNFIN=false; fi
   NOW=$(date +%Y-%m-%d\ %H:%M:%S)
   # for i in {0..8}; do echo "T[$i] = \"${T[$i]}\""; done; echo
   for i in {1..8}; do if [ -z "${T[$i]}" ]; then T[$i]=${NOW}; fi; done
@@ -217,7 +219,7 @@ function action_index_stats {
     eval "Tdiff[$i]=$(echo "(${date1} - ${date2}) / ${Tdiv}" | bc -l)"
     # echo "Tdiff[$i] = ${Tdiff[$i]}"
   done
-  TT=$(echo "${Tdiff[1]} + ${Tdiff[2]} + ${Tdiff[3]} + ${Tdiff[4]} + ${Tdiff[5]} + ${Tdiff[6]} + ${Tdiff[7]} + ${Tdiff[8]}" | bc -l)
+  TT=$(echo "${Tdiff[1]} + ${Tdiff[2]} + ${Tdiff[3]} + ${Tdiff[4]} + ${Tdiff[5]} + ${Tdiff[6]} + ${Tdiff[8]}" | bc -l)
 
   echo "Time needed for the various phases of the index build"
   echo
@@ -227,7 +229,7 @@ function action_index_stats {
   printf "%-23s : %5.1f ${Tunit}\n" "PSO & POS permutations" ${Tdiff[4]}
   printf "%-23s : %5.1f ${Tunit}\n" "SPO & SOP permutations" ${Tdiff[5]}
   printf "%-23s : %5.1f ${Tunit}\n" "OSP & OPS permutations" ${Tdiff[6]}
-  printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${Tdiff[8]}
+  if [ ${TEXT_INDEX} = true ]; then printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${Tdiff[7]}; fi
   echo
   printf "%-23s : %5.1f ${Tunit}\n" "TOTAL index build time" ${TT}
   if [ ${UNFIN} = true ]; then
