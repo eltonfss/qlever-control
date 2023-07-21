@@ -229,7 +229,7 @@ function action_index_stats {
   printf "%-23s : %5.1f ${Tunit}\n" "PSO & POS permutations" ${Tdiff[4]}
   printf "%-23s : %5.1f ${Tunit}\n" "SPO & SOP permutations" ${Tdiff[5]}
   printf "%-23s : %5.1f ${Tunit}\n" "OSP & OPS permutations" ${Tdiff[6]}
-  if [ ${TEXT_INDEX} = true ]; then printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${Tdiff[7]}; fi
+  if [ ${TEXT_INDEX} = true ]; then printf "%-23s : %5.1f ${Tunit}\n" "Add text index" ${Tdiff[8]}; fi
   echo
   printf "%-23s : %5.1f ${Tunit}\n" "TOTAL index build time" ${TT}
   if [ ${UNFIN} = true ]; then
