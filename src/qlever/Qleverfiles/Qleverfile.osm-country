@@ -1,42 +1,34 @@
-# Qleverfile for OSM of some country, use with https://github.com/ad-freiburg/qlever-control
+# Qleverfile for OSM Germany, use with https://github.com/ad-freiburg/qlever-control
 #
-# qlever get-data  # downloads .pbf file from Geofabrik und builds .ttl.bz2 using osm2rdf
-# qlever index     # for example Germany takes ~30 minutes and ~10 GB RAM (on an AMD Ryzen 9 5900X)
-# qlever start     # starts the server
+# qlever get-data  # takes ~3 mins to download .ttl.bz2 file
+# qlever index     # takes ~1 hour and ~10 GB RAM (on an AMD Ryzen 9 5900X)
+# qlever start     # start the server
 #
-# Make sure that osm2rdf is in your path. Set CONTINENT and COUNTRY such that
-# the link under GET_DATA_CMD exists (the names are usually the canonical
-# names). The time for osm2rdf is around the same as that for "qlever index".
+# For the TTL of other countries, see https://osm2rdf.cs.uni-freiburg.de and change
+# NAME, DATA_URL, and INDEX_DESCRIPTION accordingly.
 
-# Indexer settings
-CONTINENT         = europe
-COUNTRY           = switzerland
-DB                = osm-${COUNTRY}
-PBF               = ${DB}.pbf
-RDF_FILES         = "${DB}.ttl.bz2"
-CAT_FILES         = "bzcat ${RDF_FILES}"
-WITH_TEXT         = false
-STXXL_MEMORY   = 10
-SETTINGS_JSON     = '{ "prefixes-external": [ "\"LINESTRING(", "\"MULTIPOLYGON(", "\"POLYGON(" ], "ascii-prefixes-only": false, "num-triples-per-batch": 1000000 }'
-GET_DATA_CMD      = "wget -nc -O ${PBF} https://download.geofabrik.de/${CONTINENT}/${COUNTRY}-latest.osm.pbf; rm -f ${DB}.*.bz2; ( time /local/data/osm2rdf/build/apps/osm2rdf ${PBF} -o ${DB}.ttl --cache . --write-geometric-relation-statistics ) 2>&1 | tee ${DB}.osm2rdf-log.txt; rm -f spatial-*"
-INDEX_DESCRIPTION = "OSM ${COUNTRY^}, dump from $(ls -l --time-style=+%d.%m.%Y ${PBF} 2> /dev/null | cut -d' ' -f6) with ogc:contains"
+[data]
+NAME              = osm-germany
+DATA_URL          = https://osm2rdf.cs.uni-freiburg.de/ttl/deu.osm.ttl.bz2
+GET_DATA_CMD      = curl --location --fail --continue-at - --remote-time --output ${index:FILE_NAMES} ${DATA_URL}
+INDEX_DESCRIPTION = OSM Germany, data from ${DATA_URL} version 13.12.2023 (complete OSM data, with GeoSPARQL predicates ogc:sfContains and ogc:sfIntersects)
 
-# Server settings
-HOSTNAME                    = $(hostname -f)
-SERVER_PORT                 = 7025
-ACCESS_TOKEN                = ${DB}_%RANDOM%
-MEMORY_FOR_QUERIES          = 20G
-CACHE_MAX_SIZE              = 10G
-CACHE_MAX_SIZE_SINGLE_ENTRY = 5G
-CACHE_MAX_NUM_ENTRIES       = 100
+[index]
+FILE_NAMES       = ${data:NAME}.ttl.bz2
+CAT_FILES        = lbzcat -n 2 ${FILE_NAMES}
+WITH_TEXT        = false
+SETTINGS_JSON    = { "prefixes-external": ["\"POINT(", "\"LINESTRING(", "\"MULTIPOLYGON(", "\"POLYGON(", "<https://www.openstreetmap.org/node/", "<https://www.openstreetmap.org/way/", "<https://www.openstreetmap.org/relation/"], "ascii-prefixes-only": false, "parallel-parsing": true, "num-triples-per-batch": 5000000 }
 
-# QLever binaries
-QLEVER_BIN_DIR          = %QLEVER_BIN_DIR%
-USE_DOCKER              = true
-QLEVER_DOCKER_IMAGE     = adfreiburg/qlever
-QLEVER_DOCKER_CONTAINER = qlever.${DB}
+[server]
+PORT                        = 7008
+ACCESS_TOKEN                = ${data:NAME}_32673264324
+MEMORY_FOR_QUERIES          = 10G
 
-# QLever UI
-QLEVERUI_PORT   = 7000
-QLEVERUI_DIR    = qlever-ui
-QLEVERUI_CONFIG = osm
+[docker]
+USE_DOCKER = true
+IMAGE      = adfreiburg/qlever:latest
+
+[ui]
+PORT   = 7000
+URL    = https://qlever-test.cs.uni-freiburg.de/api
+CONFIG = osm-germany
